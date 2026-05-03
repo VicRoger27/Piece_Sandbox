@@ -11,6 +11,7 @@ import { Piece, PieceType, PieceColor, BoardState, UNICODE_PIECES } from '../typ
 const INITIAL_BOARD: BoardState = Array(8).fill(null).map(() => Array(8).fill(null));
 
 interface Arrow {
+  id: string;
   start: { r: number, c: number };
   end: { r: number, c: number };
 }
@@ -121,7 +122,11 @@ export default function ChessBoard() {
       if (existingArrowIndex >= 0) {
         setArrows(prev => prev.filter((_, i) => i !== existingArrowIndex));
       } else if (drawingArrow.start.r !== square.r || drawingArrow.start.c !== square.c) {
-        setArrows(prev => [...prev, { start: drawingArrow.start, end: square }]);
+        setArrows(prev => [...prev, { 
+          id: `${drawingArrow.start.r}-${drawingArrow.start.c}-${square.r}-${square.c}-${Date.now()}`,
+          start: drawingArrow.start, 
+          end: square 
+        }]);
       }
     }
     setDrawingArrow(null);
@@ -161,15 +166,18 @@ export default function ChessBoard() {
           mass: 0.8
         }}
         className={`w-full h-full flex items-center justify-center select-none ${
-          piece.color === 'white' ? 'text-white' : 'text-black'
-        } drop-shadow-[0_8px_12px_rgba(0,0,0,0.4)]`}
+          piece.color === 'white' ? 'text-white' : 'text-slate-900'
+        } drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]`}
+        style={{
+          WebkitTextStroke: piece.color === 'white' ? '0.5px rgba(0,0,0,0.1)' : '0.5px rgba(255,255,255,0.1)',
+        }}
       >
         {piece.type === 'checker' ? (
           <div className={`w-3/4 h-3/4 rounded-full border-2 ${
-            piece.color === 'white' ? 'bg-white border-gray-200' : 'bg-black border-gray-800'
+            piece.color === 'white' ? 'bg-white border-gray-200' : 'bg-slate-900 border-gray-800 shadow-lg'
           }`} />
         ) : (
-          <span className="text-4xl sm:text-5xl leading-none flex items-center justify-center w-full h-full">
+          <span className="text-4xl sm:text-5xl leading-none flex items-center justify-center w-full h-full transform transition-transform">
             {UNICODE_PIECES[piece.color][piece.type]}
           </span>
         )}
@@ -198,16 +206,19 @@ export default function ChessBoard() {
       ec = 7 - ec;
     }
 
-    const x1 = sc * sz + sz/2;
-    const y1 = sr * sz + sz/2;
-    const x2 = ec * sz + sz/2;
-    const y2 = er * sz + sz/2;
+    const x1 = (sc + 0.5) * (100 / 8);
+    const y1 = (sr + 0.5) * (100 / 8);
+    const x2 = (ec + 0.5) * (100 / 8);
+    const y2 = (er + 0.5) * (100 / 8);
 
     return (
-      <line
-        key={`${arrow.start.r}-${arrow.start.c}-${arrow.end.r}-${arrow.end.c}-${isTemp}`}
+      <motion.line
+        key={arrow.id + (isTemp ? '-temp' : '')}
+        initial={{ opacity: 0, pathLength: 0 }}
+        animate={{ opacity: 1, pathLength: 1 }}
+        exit={{ opacity: 0, transition: { duration: 0.4 } }}
         x1={`${x1}%`} y1={`${y1}%`} x2={`${x2}%`} y2={`${y2}%`}
-        stroke={isTemp ? "rgba(34, 197, 94, 0.5)" : "rgba(34, 197, 94, 0.8)"}
+        stroke={isTemp ? "rgba(34, 197, 94, 0.4)" : "rgba(34, 197, 94, 0.8)"}
         strokeWidth="10"
         markerEnd="url(#arrowhead)"
         strokeLinecap="round"
@@ -230,7 +241,7 @@ export default function ChessBoard() {
         <motion.div 
           whileHover={{ scale: 1.002 }}
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
-          className={`relative aspect-square w-full max-w-[512px] border-[12px] border-high-deep shadow-2xl bg-high-deep overflow-hidden select-none ring-1 ring-white/10 ${
+          className={`relative aspect-square w-full max-w-[512px] border-[12px] border-high-deep shadow-2xl bg-high-deep overflow-hidden select-none ring-1 ring-white/10 p-2 ${
             interactionMode === 'place' ? 'cursor-crosshair' : 'cursor-cell'
           }`}
           onMouseDown={handleMouseDown}
@@ -239,7 +250,7 @@ export default function ChessBoard() {
         >
           <div 
             ref={boardRef}
-            className="grid grid-cols-8 grid-rows-8 w-full h-full p-2 bg-high-border/20 gap-px"
+            className="grid grid-cols-8 grid-rows-8 w-full h-full bg-high-border/20 gap-px relative"
             style={{ 
                 transform: isFlipped ? 'rotate(180deg)' : 'none',
                 transition: 'transform 0.8s cubic-bezier(0.65, 0, 0.35, 1)' 
@@ -259,18 +270,21 @@ export default function ChessBoard() {
                        isDark ? 'bg-high-deep/40' : 'bg-high-text/90'
                      } ${interactionMode === 'place' ? 'hover:bg-high-accent/10 cursor-crosshair' : ''}`}
                    >
-                     {/* Magnetic Ghost preview */}
-                     {!piece && interactionMode === 'place' && selectedBrush && (
-                       <div className="absolute inset-0 opacity-0 group hover:opacity-10 flex items-center justify-center transition-opacity pointer-events-none">
-                         <motion.span 
-                           initial={{ scale: 0.8, rotate: -10 }}
-                           whileHover={{ scale: 1.2, rotate: 0 }}
-                           className={`text-4xl sm:text-5xl ${selectedBrush.color === 'white' ? 'text-white' : 'text-high-bg'}`}
-                         >
-                           {selectedBrush.type === 'checker' ? '●' : UNICODE_PIECES[selectedBrush.color][selectedBrush.type]}
-                         </motion.span>
-                       </div>
-                     )}
+                      {/* Ghost preview */}
+                      {!piece && interactionMode === 'place' && selectedBrush && (
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-40 flex items-center justify-center transition-opacity pointer-events-none">
+                          <motion.span 
+                            initial={{ scale: 0.8, rotate: -10 }}
+                            whileHover={{ scale: 1.1, rotate: 0 }}
+                            className="text-4xl sm:text-5xl"
+                            style={{ 
+                              color: selectedBrush.color === 'white' ? 'rgba(255,255,255,0.3)' : 'rgba(15,23,42,0.4)',
+                             }}
+                          >
+                            {selectedBrush.type === 'checker' ? '●' : UNICODE_PIECES[selectedBrush.color][selectedBrush.type]}
+                          </motion.span>
+                        </div>
+                      )}
                      
                      <div 
                         className="w-full h-full absolute inset-0 flex items-center justify-center pointer-events-none"
@@ -284,18 +298,20 @@ export default function ChessBoard() {
                  );
                })
             )}
-          </div>
 
-          {/* Arrow Overlay */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
-            <defs>
-              <marker id="arrowhead" markerWidth="3" markerHeight="3" refX="1.5" refY="1.5" orient="auto">
-                <polygon points="0 0, 3 1.5, 0 3" fill="rgba(34, 197, 94, 0.8)" />
-              </marker>
-            </defs>
-            {arrows.map(a => renderArrow(a))}
-            {drawingArrow && renderArrow({ start: drawingArrow.start, end: drawingArrow.current }, true)}
-          </svg>
+            {/* Arrow Overlay - Now inside the grid container */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-50">
+              <defs>
+                <marker id="arrowhead" markerWidth="3" markerHeight="3" refX="1" refY="1.5" orient="auto">
+                  <polygon points="0 0, 3 1.5, 0 3" fill="rgba(34, 197, 94, 0.8)" />
+                </marker>
+              </defs>
+              <AnimatePresence>
+                {arrows.map(a => renderArrow(a))}
+              </AnimatePresence>
+              {drawingArrow && renderArrow({ id: 'drawing', start: drawingArrow.start, end: drawingArrow.current }, true)}
+            </svg>
+          </div>
         </motion.div>
       </motion.div>
 
@@ -370,7 +386,7 @@ export default function ChessBoard() {
                     {type === 'checker' ? (
                       <div className="w-5 h-5 rounded-full bg-white border border-gray-200" />
                     ) : (
-                      <span className="text-2xl pt-1 leading-none">{UNICODE_PIECES.white[type]}</span>
+                      <span className="text-3xl leading-none text-white">{UNICODE_PIECES.white[type]}</span>
                     )}
                   </motion.button>
                 ))}
@@ -393,7 +409,9 @@ export default function ChessBoard() {
                     {type === 'checker' ? (
                       <div className="w-5 h-5 rounded-full bg-black border border-gray-800" />
                     ) : (
-                      <span className="text-2xl pt-1 leading-none">{UNICODE_PIECES.black[type]}</span>
+                      <span className="text-3xl leading-none text-slate-900 drop-shadow-[0_0_2px_rgba(255,255,255,0.5)]">
+                        {UNICODE_PIECES.black[type]}
+                      </span>
                     )}
                   </motion.button>
                 ))}
