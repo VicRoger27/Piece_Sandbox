@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-high-bg: #0c0d0e;
+  --color-high-card: #15171a;
+  --color-high-border: #2d2f33;
+  --color-high-accent: #22c55e;
+  --color-high-text: #d1d5db;
+  --color-high-muted: #6b7280;
+  --color-high-deep: #1e2124;
+}
+
+@layer base {
+  body {
+    @apply bg-high-bg text-high-text font-sans overflow-x-hidden;
+  }
+}
+
+.high-density-shadow {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.mono-micro {
+  @apply font-mono text-[10px] uppercase tracking-tighter;
+}
