@@ -18,7 +18,7 @@ interface Arrow {
 export default function ChessBoard() {
   const [board, setBoard] = useState<BoardState>(INITIAL_BOARD);
   const [selectedBrush, setSelectedBrush] = useState<{ type: PieceType; color: PieceColor } | null>(null);
-  const [interactionMode, setInteractionMode] = useState<'place' | 'move' | 'erase' | 'arrow'>('place');
+  const [interactionMode, setInteractionMode] = useState<'place' | 'arrow'>('place');
   const [isFlipped, setIsFlipped] = useState(false);
   const [arrows, setArrows] = useState<Arrow[]>([]);
   const [drawingArrow, setDrawingArrow] = useState<{ start: { r: number, c: number }, current: { r: number, c: number } } | null>(null);
@@ -28,8 +28,26 @@ export default function ChessBoard() {
   ]);
   const boardRef = useRef<HTMLDivElement>(null);
 
+  const [isPainting, setIsPainting] = useState(false);
+
   const addLog = (msg: string) => {
     setHistory(prev => [{ msg, type: 'user' }, ...prev].slice(0, 10));
+  };
+
+  const placePiece = (row: number, col: number, toggle = false) => {
+    if (!selectedBrush) return;
+    const newBoard = [...board.map(r => [...r])];
+    const existing = newBoard[row][col];
+
+    if (toggle && existing?.type === selectedBrush.type && existing?.color === selectedBrush.color) {
+      newBoard[row][col] = null;
+    } else {
+      newBoard[row][col] = {
+        id: Math.random().toString(36).substr(2, 9),
+        ...selectedBrush
+      };
+    }
+    setBoard(newBoard);
   };
 
   const clearBoard = () => {
@@ -56,60 +74,26 @@ export default function ChessBoard() {
     return null;
   };
 
-  const handleSquareClick = (row: number, col: number) => {
-    if (interactionMode === 'erase') {
-      if (board[row][col]) {
-        const newBoard = [...board.map(r => [...r])];
-        newBoard[row][col] = null;
-        setBoard(newBoard);
-        addLog(`Erased square`);
-      }
-      return;
-    }
-
+  const handleSquareMouseDown = (row: number, col: number) => {
     if (interactionMode === 'place' && selectedBrush) {
-      const newBoard = [...board.map(r => [...r])];
-      if (newBoard[row][col]?.type === selectedBrush.type && newBoard[row][col]?.color === selectedBrush.color) {
-        newBoard[row][col] = null;
-      } else {
-        newBoard[row][col] = {
-          id: Math.random().toString(36).substr(2, 9),
-          ...selectedBrush
-        };
-      }
-      setBoard(newBoard);
+      setIsPainting(true);
+      placePiece(row, col, true);
     }
   };
 
-  const onDragEnd = (piece: Piece, fromRow: number, fromCol: number, event: any, info: any) => {
-    if (interactionMode !== 'move') return;
-    
-    const square = getSquareFromPoint(info.point.x, info.point.y);
-    if (!square) return;
-
-    const { r: row, c: col } = square;
-
-    if (row === fromRow && col === fromCol) return;
-
-    const newBoard = [...board.map(r => [...r])];
-    const target = newBoard[row][col];
-    newBoard[fromRow][fromCol] = null;
-    newBoard[row][col] = piece;
-    setBoard(newBoard);
-    
-    if (target) {
-      addLog(`Captured ${target.color} ${target.type}`);
-    } else {
-      addLog(`Moved piece`);
+  const handleSquareMouseEnter = (row: number, col: number) => {
+    if (isPainting && interactionMode === 'place' && selectedBrush) {
+      placePiece(row, col, false);
     }
   };
 
   // Arrow drawing logic
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 2 && interactionMode !== 'arrow') return;
-    const square = getSquareFromPoint(e.clientX, e.clientY);
-    if (square) {
-      setDrawingArrow({ start: square, current: square });
+    if (e.button === 2 || interactionMode === 'arrow') {
+      const square = getSquareFromPoint(e.clientX, e.clientY);
+      if (square) {
+        setDrawingArrow({ start: square, current: square });
+      }
     }
   };
 
@@ -122,11 +106,11 @@ export default function ChessBoard() {
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
+    setIsPainting(false);
     if (!drawingArrow) return;
     
     const square = getSquareFromPoint(e.clientX, e.clientY);
     if (square) {
-      // If same square, toggle circle? For now just remove or add arrow
       const existingArrowIndex = arrows.findIndex(a => 
         a.start.r === drawingArrow.start.r && a.start.c === drawingArrow.start.c &&
         a.end.r === square.r && a.end.c === square.c
@@ -142,11 +126,16 @@ export default function ChessBoard() {
   };
 
   useEffect(() => {
+    const handleGlobalMouseUp = () => setIsPainting(false);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
     };
     window.addEventListener('contextmenu', handleContextMenu);
-    return () => window.removeEventListener('contextmenu', handleContextMenu);
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('contextmenu', handleContextMenu);
+    }
   }, []);
 
   const renderPiece = (piece: Piece | null, row: number, col: number) => {
@@ -155,9 +144,9 @@ export default function ChessBoard() {
     return (
       <motion.div
         layoutId={piece.id}
-        drag={interactionMode === 'move'}
+        drag={false}
         dragSnapToOrigin={false}
-        onDragEnd={(e, info) => onDragEnd(piece, row, col, e, info)}
+        onDragEnd={(e, info) => {}}
         className={`w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing select-none ${
           piece.color === 'white' ? 'text-white' : 'text-black'
         } drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]`}
@@ -241,10 +230,11 @@ export default function ChessBoard() {
                    <div
                      key={`${rowIndex}-${colIndex}`}
                      id={`square-${rowIndex}-${colIndex}`}
-                     onClick={() => handleSquareClick(rowIndex, colIndex)}
+                     onMouseDown={() => handleSquareMouseDown(rowIndex, colIndex)}
+                     onMouseEnter={() => handleSquareMouseEnter(rowIndex, colIndex)}
                      className={`w-full h-full relative flex items-center justify-center pointer-events-auto transition-colors duration-200 ${
                        isDark ? 'bg-[#4b5563]' : 'bg-[#d1d5db]'
-                     } ${interactionMode === 'erase' ? 'hover:bg-red-500/40 cursor-crosshair' : (interactionMode === 'place' || interactionMode === 'move') ? 'hover:bg-high-accent/20 cursor-pointer' : ''}`}
+                     } ${interactionMode === 'place' ? 'hover:bg-high-accent/20 cursor-pointer' : ''}`}
                    >
                      <div 
                         className="w-full h-full absolute inset-0 flex items-center justify-center pointer-events-none"
@@ -276,11 +266,9 @@ export default function ChessBoard() {
       {/* Right Column: Piece Selection & Actions */}
       <div className="flex-1 w-full flex flex-col gap-4">
         {/* Simple Mode Selector */}
-        <div className="grid grid-cols-4 gap-1 bg-high-card border border-high-border p-1">
+        <div className="grid grid-cols-2 gap-1 bg-high-card border border-high-border p-1">
           {[
             { id: 'place', icon: Sparkles, label: 'PLACE' },
-            { id: 'move', icon: Hand, label: 'MOVE' },
-            { id: 'erase', icon: Eraser, label: 'ERASE' },
             { id: 'arrow', icon: MousePointer2, label: 'DRAW' }
           ].map(m => (
             <button
@@ -343,7 +331,7 @@ export default function ChessBoard() {
           
           <div className="grid grid-cols-2 gap-1 mt-4">
             <button 
-              onClick={() => { setSelectedBrush(null); setInteractionMode('move'); }}
+              onClick={() => { setSelectedBrush(null); }}
               className="py-2 border border-high-border mono-micro text-high-muted hover:text-white transition-colors"
             >
               Deselect

@@ -17,10 +17,6 @@ export default function App() {
           </div>
           <h1 className="text-sm font-bold uppercase tracking-[0.3em] text-white">Piece Sandbox</h1>
         </div>
-        <div className="flex items-center gap-2 mono-micro text-high-muted">
-          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-          ACTIVE
-        </div>
       </header>
 
       <main className="flex-1 flex flex-col overflow-hidden">
