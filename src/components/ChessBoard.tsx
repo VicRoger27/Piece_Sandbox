@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trash2, RotateCw, Sparkles, Hand, Eraser, MousePointer2 } from 'lucide-react';
+import { Trash2, RotateCw, Sparkles, Hand, Eraser, MousePointer2, Crown } from 'lucide-react';
 import { Piece, PieceType, PieceColor, BoardState, UNICODE_PIECES } from '../types';
 
 const INITIAL_BOARD: BoardState = Array(8).fill(null).map(() => Array(8).fill(null));
@@ -16,14 +16,36 @@ interface Arrow {
   end: { r: number; c: number };
 }
 
-const PieceComponent = React.memo(({ piece }: { piece: Piece }) => {
+const PieceComponent = React.memo(({ piece, isFlinging }: { piece: Piece; isFlinging?: boolean }) => {
+  const isChecker = piece.type === 'checker' || piece.type === 'checkerKing';
+  
+  // Random directions for flinging
+  const flingX = useRef((Math.random() - 0.5) * 1000);
+  const flingY = useRef((Math.random() - 0.5) * 1000);
+  const flingRotate = useRef((Math.random() - 0.5) * 720);
+
   return (
     <motion.div
       layoutId={piece.id}
       initial={{ scale: 0.3, opacity: 0, y: -40, rotate: -15 }}
-      animate={{ scale: 1, opacity: 1, y: 0, rotate: 0 }}
+      animate={isFlinging ? { 
+        x: flingX.current, 
+        y: flingY.current, 
+        rotate: flingRotate.current,
+        scale: 0,
+        opacity: 0 
+      } : { 
+        scale: 1, 
+        opacity: 1, 
+        y: 0, 
+        rotate: 0,
+        x: 0
+      }}
       exit={{ scale: 0.5, opacity: 0, y: 20 }}
-      transition={{
+      transition={isFlinging ? {
+        duration: 1.2,
+        ease: "easeIn"
+      } : {
         type: "spring",
         stiffness: 500,
         damping: 15,
@@ -36,10 +58,18 @@ const PieceComponent = React.memo(({ piece }: { piece: Piece }) => {
         WebkitTextStroke: piece.color === 'white' ? '0.5px rgba(0,0,0,0.1)' : '0.5px rgba(255,255,255,0.1)',
       }}
     >
-      {piece.type === 'checker' ? (
-        <div className={`w-3/4 h-3/4 rounded-full border-2 ${
+      {isChecker ? (
+        <div className={`w-3/4 h-3/4 rounded-full border-2 flex items-center justify-center relative ${
           piece.color === 'white' ? 'bg-white border-gray-200' : 'bg-slate-900 border-gray-800 shadow-lg'
-        }`} />
+        }`}>
+          {piece.type === 'checkerKing' && (
+            <Crown 
+              size={14} 
+              className={piece.color === 'white' ? 'text-slate-400' : 'text-white/20'} 
+              strokeWidth={3}
+            />
+          )}
+        </div>
       ) : (
         <span className="text-4xl sm:text-5xl leading-none flex items-center justify-center w-full h-full transform transition-transform">
           {UNICODE_PIECES[piece.color][piece.type]}
@@ -57,6 +87,7 @@ const BoardSquare = React.memo(({
   isFlipped,
   interactionMode, 
   selectedBrush,
+  isFlinging,
   onSquareMouseDown, 
   onSquareMouseEnter 
 }: { 
@@ -67,6 +98,7 @@ const BoardSquare = React.memo(({
   isFlipped: boolean;
   interactionMode: string;
   selectedBrush: { type: PieceType; color: PieceColor } | null;
+  isFlinging: boolean;
   onSquareMouseDown: (r: number, c: number, e: React.MouseEvent) => void;
   onSquareMouseEnter: (r: number, c: number) => void;
 }) => {
@@ -75,6 +107,17 @@ const BoardSquare = React.memo(({
       onMouseDown={(e) => onSquareMouseDown(row, col, e)}
       onMouseEnter={() => onSquareMouseEnter(row, col)}
       whileHover={{ zIndex: 10 }}
+      initial={{ scale: 1, opacity: 1, borderRadius: '0%' }}
+      animate={isFlinging ? { 
+        scale: 0.7, 
+        opacity: 0.6,
+        borderRadius: '50%',
+      } : { 
+        scale: 1, 
+        opacity: 1,
+        borderRadius: '0%',
+      }}
+      transition={{ duration: 1.2, ease: "easeInOut" }}
       className={`w-full h-full relative flex items-center justify-center pointer-events-auto transition-all duration-700 ${
         isDark ? 'bg-high-deep/40' : 'bg-high-text/90'
       } ${interactionMode === 'place' ? 'hover:bg-high-accent/10 cursor-crosshair' : ''}`}
@@ -89,7 +132,7 @@ const BoardSquare = React.memo(({
               color: selectedBrush.color === 'white' ? 'rgba(255,255,255,0.3)' : 'rgba(15,23,42,0.4)',
             }}
           >
-            {selectedBrush.type === 'checker' ? '●' : UNICODE_PIECES[selectedBrush.color][selectedBrush.type]}
+            {(selectedBrush.type === 'checker' || selectedBrush.type === 'checkerKing') ? UNICODE_PIECES[selectedBrush.color][selectedBrush.type] : UNICODE_PIECES[selectedBrush.color][selectedBrush.type]}
           </motion.span>
         </div>
       )}
@@ -98,7 +141,7 @@ const BoardSquare = React.memo(({
         style={{ transform: isFlipped ? 'rotate(180deg)' : 'none' }}
       >
         <AnimatePresence mode="popLayout">
-          {piece && <PieceComponent piece={piece} />}
+          {piece && <PieceComponent piece={piece} isFlinging={isFlinging} />}
         </AnimatePresence>
       </div>
     </motion.div>
@@ -146,6 +189,7 @@ export default function ChessBoard() {
   const [drawingArrow, setDrawingArrow] = useState<{ start: { r: number, c: number }, current: { r: number, c: number } } | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const [isPainting, setIsPainting] = useState(false);
+  const [isFlinging, setIsFlinging] = useState(false);
 
   // Piece placing logic
   const placePiece = useCallback((row: number, col: number, toggle = false) => {
@@ -169,6 +213,22 @@ export default function ChessBoard() {
   const clearBoard = useCallback(() => {
     setBoard(INITIAL_BOARD);
     setArrows([]);
+  }, []);
+
+  const handleFlip = useCallback(() => {
+    const today = new Date();
+    const isAprilFools = today.getMonth() === 3 && today.getDate() === 1;
+
+    if (isAprilFools) {
+      setIsFlinging(true);
+      setTimeout(() => {
+        setBoard(INITIAL_BOARD);
+        setIsFlinging(false);
+        setIsFlipped(prev => !prev);
+      }, 1200);
+    } else {
+      setIsFlipped(prev => !prev);
+    }
   }, []);
 
   const getSquareFromPoint = useCallback((x: number, y: number) => {
@@ -264,7 +324,7 @@ export default function ChessBoard() {
     }
   }, []);
 
-  const pieces: PieceType[] = ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn', 'checker'];
+  const pieces: PieceType[] = ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn', 'checker', 'checkerKing'];
 
   return (
     <div className="flex flex-col xl:flex-row gap-6 w-full max-w-[1200px] mx-auto h-full items-start overflow-hidden">
@@ -284,10 +344,11 @@ export default function ChessBoard() {
         >
           <div 
             ref={boardRef}
-            className="grid grid-cols-8 grid-rows-8 w-full h-full bg-high-border/20 gap-px relative"
+            className="grid grid-cols-8 grid-rows-8 w-full h-full bg-high-border/20 relative"
             style={{ 
                 transform: isFlipped ? 'rotate(180deg)' : 'none',
-                transition: 'transform 0.8s cubic-bezier(0.65, 0, 0.35, 1)' 
+                gap: isFlinging ? '12px' : '1px',
+                transition: 'transform 1.2s cubic-bezier(0.65, 0, 0.35, 1), gap 1.2s cubic-bezier(0.65, 0, 0.35, 1)' 
             }}
           >
             {board.map((rowArr, rowIndex) => 
@@ -301,6 +362,7 @@ export default function ChessBoard() {
                    isFlipped={isFlipped}
                    interactionMode={interactionMode}
                    selectedBrush={selectedBrush}
+                   isFlinging={isFlinging}
                    onSquareMouseDown={handleSquareMouseDown}
                    onSquareMouseEnter={handleSquareMouseEnter}
                  />
@@ -361,7 +423,7 @@ export default function ChessBoard() {
         <div className="bg-high-card border border-high-border p-3">
           <div className="space-y-4">
             <div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
                 {pieces.map(type => (
                   <motion.button
                     key={`white-${type}`}
@@ -374,8 +436,10 @@ export default function ChessBoard() {
                         : 'border-white/5 bg-high-deep/50 text-high-muted hover:border-white/20'
                     }`}
                   >
-                    {type === 'checker' ? (
-                      <div className="w-5 h-5 rounded-full bg-white border border-gray-200" />
+                    {(type === 'checker' || type === 'checkerKing') ? (
+                      <div className={`w-5 h-5 rounded-full bg-white border border-gray-200 flex items-center justify-center ${type === 'checkerKing' ? 'relative' : ''}`}>
+                        {type === 'checkerKing' && <Crown size={8} className="text-slate-400" strokeWidth={3} />}
+                      </div>
                     ) : (
                       <span className="text-3xl leading-none text-white">{UNICODE_PIECES.white[type]}</span>
                     )}
@@ -384,7 +448,7 @@ export default function ChessBoard() {
               </div>
             </div>
             <div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
                 {pieces.map(type => (
                   <motion.button
                     key={`black-${type}`}
@@ -397,8 +461,10 @@ export default function ChessBoard() {
                         : 'border-white/5 bg-high-deep/50 text-high-muted hover:border-white/20'
                     }`}
                   >
-                    {type === 'checker' ? (
-                      <div className="w-5 h-5 rounded-full bg-black border border-gray-800" />
+                    {(type === 'checker' || type === 'checkerKing') ? (
+                      <div className={`w-5 h-5 rounded-full bg-black border border-gray-800 flex items-center justify-center ${type === 'checkerKing' ? 'relative' : ''}`}>
+                        {type === 'checkerKing' && <Crown size={8} className="text-white/20" strokeWidth={3} />}
+                      </div>
                     ) : (
                       <span className="text-3xl leading-none text-slate-900 drop-shadow-[0_0_2px_rgba(255,255,255,0.5)]">
                         {UNICODE_PIECES.black[type]}
@@ -427,7 +493,7 @@ export default function ChessBoard() {
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setIsFlipped(!isFlipped)}
+            onClick={handleFlip}
             className="w-full py-3 border border-high-border text-high-muted hover:text-white mono-micro transition-colors flex items-center justify-center gap-2"
           >
             <RotateCw size={14} />

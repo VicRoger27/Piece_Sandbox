@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type PieceType = 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king' | 'checker';
+export type PieceType = 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king' | 'checker' | 'checkerKing';
 export type PieceColor = 'white' | 'black';
 
 export interface Piece {
@@ -23,6 +23,7 @@ export const UNICODE_PIECES: Record<PieceColor, Record<PieceType, string>> = {
     knight: '♞',
     pawn: '♟',
     checker: '●',
+    checkerKing: '◎',
   },
   black: {
     king: '♚',
@@ -32,5 +33,6 @@ export const UNICODE_PIECES: Record<PieceColor, Record<PieceType, string>> = {
     knight: '♞',
     pawn: '♟',
     checker: '●',
+    checkerKing: '◎',
   },
 };
