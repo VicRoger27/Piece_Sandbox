@@ -54,13 +54,11 @@ const AnnotationComponent = React.memo(({ annotation, isFlipped, isTemp }: { ann
         <motion.div 
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className={`flex items-center justify-center w-full h-full ${colorClass}`}
+          className={`flex items-center justify-center w-full h-full rounded-full bg-white shadow-sm transition-all ${colorClass}`}
         >
-          {annotation.type === 'cross' ? (
-            <span className="text-3xl font-bold select-none drop-shadow-md">✕</span>
-          ) : (
-            <span className="text-3xl font-bold select-none drop-shadow-md">✓</span>
-          )}
+          <span className="text-2xl sm:text-3xl font-black select-none leading-none flex items-center justify-center">
+            {annotation.type === 'cross' ? '✕' : '✓'}
+          </span>
         </motion.div>
       </foreignObject>
     );
