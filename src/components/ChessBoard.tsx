@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trash2, RotateCw, Sparkles, Hand, Eraser, MousePointer2, Crown, Settings as SettingsIcon, X } from 'lucide-react';
+import { Trash2, RotateCw, Sparkles, Hand, Eraser, MousePointer2, Crown, Settings as SettingsIcon, X, Check } from 'lucide-react';
 import { Piece, PieceType, PieceColor, BoardState, UNICODE_PIECES } from '../types';
 
 const INITIAL_BOARD: BoardState = Array(8).fill(null).map(() => Array(8).fill(null));
@@ -54,11 +54,13 @@ const AnnotationComponent = React.memo(({ annotation, isFlipped, isTemp }: { ann
         <motion.div 
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className={`flex items-center justify-center w-full h-full rounded-full bg-white shadow-sm transition-all ${colorClass}`}
+          className={`flex items-center justify-center w-full h-full transition-all ${colorClass}`}
         >
-          <span className="text-2xl sm:text-3xl font-black select-none leading-none flex items-center justify-center">
-            {annotation.type === 'cross' ? '✕' : '✓'}
-          </span>
+          {annotation.type === 'cross' ? (
+            <X className="w-full h-full stroke-[4px]" />
+          ) : (
+            <Check className="w-full h-full stroke-[4px]" />
+          )}
         </motion.div>
       </foreignObject>
     );
