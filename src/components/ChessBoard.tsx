@@ -378,21 +378,14 @@ export default function ChessBoard({
     if ((isMarkMode && isLeftClick) || isRightClick) {
       const square = getSquareFromPoint(e.clientX, e.clientY);
       if (square) {
-        let type: AnnotationType = 'arrow';
+        let type: AnnotationType = annotationMode;
         
-        if (isRightClick) {
-            if (e.shiftKey) {
-                type = 'countingArrow';
-            } else if (!isMarkMode && isRKeyPressed) {
-                // "red arrow = ... otherwise r+r-click"
-                type = 'redArrow';
-            } else {
-                // "green arrow = r-click"
-                type = 'arrow';
-            }
-        } else if (isMarkMode && isLeftClick) {
-            // "red arrow = l-click when on the mark section"
-            type = 'redArrow';
+        if (isLeftClick && isMarkMode) {
+            type = annotationMode;
+        } else if (isRightClick) {
+            if (e.shiftKey) type = 'countingArrow';
+            else if (isRKeyPressed) type = 'redArrow';
+            else type = 'arrow';
         }
 
         setDrawingAnnotation({ 
@@ -402,7 +395,7 @@ export default function ChessBoard({
         });
       }
     }
-  }, [interactionMode, isRKeyPressed, getSquareFromPoint]);
+  }, [interactionMode, annotationMode, isRKeyPressed, getSquareFromPoint]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!drawingAnnotation) return;
