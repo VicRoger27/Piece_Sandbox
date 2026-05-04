@@ -3,11 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import ChessBoard from './components/ChessBoard';
 import { motion } from 'motion/react';
+import { Github, Settings as SettingsIcon } from 'lucide-react';
 
 export default function App() {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -33,10 +36,36 @@ export default function App() {
             Piece Sandbox
           </h1>
         </div>
+
+        <div className="flex items-center gap-4">
+          <motion.button
+            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`flex items-center gap-2 transition-colors mono-micro text-[10px] sm:text-xs ${
+              isSettingsOpen ? 'text-high-accent' : 'text-high-muted hover:text-white'
+            }`}
+          >
+            <SettingsIcon size={16} />
+            <span className="hidden sm:inline">SETTINGS</span>
+          </motion.button>
+
+          <motion.a
+            href="https://github.com/VicRoger27/Sandbox"
+            target="_blank"
+            rel="noopener noreferrer"
+            whileHover={{ scale: 1.05, textShadow: "0 0 8px rgba(255,255,255,0.5)" }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-2 text-high-muted hover:text-white transition-colors mono-micro text-[10px] sm:text-xs"
+          >
+            <Github size={16} />
+            <span className="hidden sm:inline">VIEW ON GITHUB</span>
+          </motion.a>
+        </div>
       </motion.header>
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        <ChessBoard />
+        <ChessBoard isSettingsOpen={isSettingsOpen} setIsSettingsOpen={setIsSettingsOpen} />
       </main>
     </motion.div>
   );

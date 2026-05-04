@@ -268,7 +268,13 @@ const PieceLayer = React.memo(({ piece, isFlinging, isFlipped, typeFilter }: { p
   );
 });
 
-export default function ChessBoard() {
+export default function ChessBoard({ 
+  isSettingsOpen, 
+  setIsSettingsOpen 
+}: { 
+  isSettingsOpen: boolean; 
+  setIsSettingsOpen: (open: boolean) => void; 
+}) {
   const [board, setBoard] = useState<BoardState>(INITIAL_BOARD);
   const [selectedBrush, setSelectedBrush] = useState<{ type: PieceType; color: PieceColor } | null>(null);
   const [interactionMode, setInteractionMode] = useState<'place' | 'arrow'>('place');
@@ -280,9 +286,9 @@ export default function ChessBoard() {
   const [isPainting, setIsPainting] = useState(false);
   const [isFlinging, setIsFlinging] = useState(false);
   const [showTips, setShowTips] = useState(true);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [hoveredSquare, setHoveredSquare] = useState<{r: number, c: number} | null>(null);
   const [isRKeyPressed, setIsRKeyPressed] = useState(false);
+  const [colorfulMode, setColorfulMode] = useState(false);
 
   // Piece placing logic
   const placePiece = useCallback((row: number, col: number, toggle = false) => {
@@ -375,10 +381,17 @@ export default function ChessBoard() {
         let type: AnnotationType = 'arrow';
         
         if (isRightClick) {
-            if (e.shiftKey) type = 'countingArrow';
-            else if (isRKeyPressed) type = 'redArrow';
-            else type = 'arrow';
+            if (e.shiftKey) {
+                type = 'countingArrow';
+            } else if (!isMarkMode && isRKeyPressed) {
+                // "red arrow = ... otherwise r+r-click"
+                type = 'redArrow';
+            } else {
+                // "green arrow = r-click"
+                type = 'arrow';
+            }
         } else if (isMarkMode && isLeftClick) {
+            // "red arrow = l-click when on the mark section"
             type = 'redArrow';
         }
 
@@ -491,12 +504,18 @@ export default function ChessBoard() {
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.4 }}
-        className="flex-[2] w-full bg-high-card border border-high-border p-8 flex items-center justify-center relative min-h-[400px] sm:min-h-[640px]"
+        className="flex-[2] w-full p-8 flex items-center justify-center relative min-h-[400px] sm:min-h-[640px]"
       >
         <motion.div 
-          className={`relative aspect-square w-full max-w-[512px] border-[12px] border-high-deep shadow-2xl bg-high-deep overflow-hidden select-none p-2 ${
+          className={`relative aspect-square w-full max-w-[512px] border-high-deep shadow-2xl overflow-hidden select-none p-2 ${
             interactionMode === 'place' ? 'cursor-crosshair' : 'cursor-cell'
           }`}
+          style={{ 
+            backgroundColor: colorfulMode ? '#14212e' : 'var(--high-deep)',
+            borderStyle: 'groove',
+            borderWidth: '13px',
+            borderRadius: '1px'
+          }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -598,22 +617,15 @@ export default function ChessBoard() {
         transition={{ duration: 0.4 }}
         className="flex-1 w-full flex flex-col gap-4"
       >
-        <div className="relative flex p-1 bg-high-card border border-high-border overflow-hidden h-12">
-          {/* Settings Icon Toggle */}
-          <div className="absolute right-2 top-0 bottom-0 flex items-center z-20">
-            <button 
-              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-              className={`p-2 transition-colors ${isSettingsOpen ? 'text-high-accent' : 'text-high-muted hover:text-white'}`}
-            >
-              <SettingsIcon size={16} />
-            </button>
-          </div>
-
+        <div 
+          className="relative flex p-1 border border-high-border overflow-hidden h-12"
+          style={{ backgroundColor: colorfulMode ? '#192c9e' : 'var(--high-card)' }}
+        >
           <motion.div
             className="absolute top-1 bottom-1 bg-high-accent shadow-[0_2px_15px_rgba(34,197,94,0.4)] z-0 rounded-sm"
-            animate={{ left: interactionMode === 'place' ? '4px' : 'calc(50% - 14px)' }}
+            animate={{ left: interactionMode === 'place' ? '4px' : 'calc(50% + 2px)' }}
             transition={{ type: "spring", stiffness: 180, damping: 20 }}
-            style={{ width: 'calc(50% - 22px)' }}
+            style={{ width: 'calc(50% - 6px)' }}
           />
           {[
             { id: 'place', icon: Sparkles, label: 'PLACE' },
@@ -626,7 +638,9 @@ export default function ChessBoard() {
             >
               <motion.div
                 animate={{ 
-                  color: interactionMode === m.id ? '#000000' : '#64748b',
+                  color: interactionMode === m.id 
+                    ? (colorfulMode ? '#000000' : '#ffffff') 
+                    : '#64748b',
                   scale: interactionMode === m.id ? 1.05 : 1,
                 }}
                 className="flex flex-col items-center gap-1"
@@ -653,15 +667,26 @@ export default function ChessBoard() {
                         <X size={14} />
                     </button>
                 </div>
-                <label className="flex items-center justify-between cursor-pointer group">
-                    <span className="mono-micro text-[10px] text-high-muted group-hover:text-white transition-colors">Show Mouse Shortcuts Tip</span>
-                    <input 
-                        type="checkbox" 
-                        checked={showTips} 
-                        onChange={(e) => setShowTips(e.target.checked)}
-                        className="accent-high-accent w-3 h-3 bg-high-deep border-none focus:ring-0"
-                    />
-                </label>
+                <div className="space-y-3">
+                    <label className="flex items-center justify-between cursor-pointer group">
+                        <span className="mono-micro text-[10px] text-high-muted group-hover:text-white transition-colors">Show Mouse Shortcuts Tip</span>
+                        <input 
+                            type="checkbox" 
+                            checked={showTips} 
+                            onChange={(e) => setShowTips(e.target.checked)}
+                            className="accent-high-accent w-3 h-3 bg-high-deep border-none focus:ring-0"
+                        />
+                    </label>
+                    <label className="flex items-center justify-between cursor-pointer group">
+                        <span className="mono-micro text-[10px] text-high-muted group-hover:text-white transition-colors">Colorful Mode</span>
+                        <input 
+                            type="checkbox" 
+                            checked={colorfulMode} 
+                            onChange={(e) => setColorfulMode(e.target.checked)}
+                            className="accent-high-accent w-3 h-3 bg-high-deep border-none focus:ring-0"
+                        />
+                    </label>
+                </div>
                 <div className="mt-4 pt-4 border-t border-white/5">
                     <button 
                         onClick={() => { setAnnotations([]); setIsSettingsOpen(false); }}
@@ -673,34 +698,42 @@ export default function ChessBoard() {
             </motion.div>
         )}
 
-        {interactionMode === 'arrow' && (
-            <motion.div 
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex gap-1 p-1 bg-high-card border border-high-border"
-            >
-                {[
-                    { id: 'arrow', color: 'bg-green-500', label: 'Green' },
-                    { id: 'redArrow', color: 'bg-red-500', label: 'Red' },
-                    { id: 'countingArrow', color: 'bg-orange-500', label: 'Ct.' },
-                    { id: 'cross', color: 'bg-red-400', label: 'X' },
-                    { id: 'tick', color: 'bg-green-400', label: 'V' },
-                ].map(tool => (
-                    <button
-                        key={tool.id}
-                        onClick={() => setAnnotationMode(tool.id as AnnotationType)}
-                        className={`flex-1 h-8 flex flex-col items-center justify-center transition-all border ${
-                            annotationMode === tool.id ? 'border-high-accent bg-high-accent/10' : 'border-transparent hover:bg-white/5'
-                        }`}
-                    >
-                        <div className={`w-3 h-3 rounded-full ${tool.color} mb-0.5`} />
-                        <span className="text-[8px] mono uppercase text-high-muted font-bold truncate px-1">{tool.label}</span>
-                    </button>
-                ))}
-            </motion.div>
-        )}
+        <div 
+            className={`transition-colors duration-300 ${interactionMode === 'arrow' ? 'border border-high-border' : ''}`}
+            style={{ backgroundColor: interactionMode === 'arrow' ? (colorfulMode ? '#2d5b88' : 'var(--high-card)') : 'transparent' }}
+        >
+            {interactionMode === 'arrow' && (
+                <motion.div 
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex gap-1 p-1"
+                >
+                    {[
+                        { id: 'arrow', color: 'bg-green-500', label: 'Green' },
+                        { id: 'redArrow', color: 'bg-red-500', label: 'Red' },
+                        { id: 'countingArrow', color: 'bg-orange-500', label: 'COUNT' },
+                        { id: 'cross', color: 'bg-red-400', label: 'X' },
+                        { id: 'tick', color: 'bg-green-400', label: '✓' },
+                    ].map(tool => (
+                        <button
+                            key={tool.id}
+                            onClick={() => setAnnotationMode(tool.id as AnnotationType)}
+                            className={`flex-1 h-8 flex flex-col items-center justify-center transition-all border ${
+                                annotationMode === tool.id ? 'border-high-accent bg-high-accent/10' : 'border-transparent hover:bg-white/5'
+                            }`}
+                        >
+                            <div className={`w-3 h-3 rounded-full ${tool.color} mb-0.5`} />
+                            <span className="text-[8px] mono uppercase text-high-muted font-bold truncate px-1">{tool.label}</span>
+                        </button>
+                    ))}
+                </motion.div>
+            )}
+        </div>
 
-        <div className="bg-high-card border border-high-border p-3">
+        <div 
+          className="border border-high-border p-3"
+          style={{ backgroundColor: colorfulMode ? '#7c2892' : 'var(--high-card)' }}
+        >
           <div className="space-y-4">
             <div>
               <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
@@ -756,8 +789,30 @@ export default function ChessBoard() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-1 mt-4">
-            <button onClick={() => setSelectedBrush(null)} className="py-2 border border-high-border mono-micro text-high-muted hover:text-white transition-colors">Deselect</button>
-            <button onClick={() => setAnnotations([])} className="py-2 border border-high-border mono-micro text-high-muted hover:text-white transition-colors">Clear Marks</button>
+            <button 
+                onClick={() => setSelectedBrush(null)} 
+                className="py-2 border border-high-border mono-micro transition-all"
+                style={{ 
+                    backgroundColor: colorfulMode ? '#af1f1f' : 'transparent',
+                    color: colorfulMode ? 'white' : 'var(--high-muted)',
+                    fontFamily: 'Verdana, sans-serif'
+                }}
+            >
+                Deselect
+            </button>
+            <button 
+                onClick={() => setAnnotations([])} 
+                className="py-2 border border-high-border mono-micro transition-all"
+                style={{ 
+                    backgroundColor: colorfulMode ? '#af831a' : 'transparent',
+                    color: colorfulMode ? '#342424' : 'var(--high-muted)',
+                    fontFamily: 'Arial, sans-serif',
+                    fontSize: '10px',
+                    fontWeight: 'bold'
+                }}
+            >
+                Clear Marks
+            </button>
           </div>
         </div>
 
@@ -774,7 +829,12 @@ export default function ChessBoard() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleFlip}
-            className="w-full py-3 border border-high-border text-high-muted hover:text-white mono-micro transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 border border-high-border mono-micro transition-colors flex items-center justify-center gap-2"
+            style={{ 
+                backgroundColor: colorfulMode ? '#23c58c' : 'transparent',
+                color: colorfulMode ? 'black' : 'var(--high-muted)',
+                fontWeight: colorfulMode ? 'bold' : 'normal'
+            }}
           >
             <RotateCw size={14} />
             Flip Perspective
@@ -785,11 +845,11 @@ export default function ChessBoard() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="p-3 bg-high-deep/50 border border-white/5 space-y-2"
+              className="p-3 border border-white/5 space-y-2"
+              style={{ backgroundColor: colorfulMode ? '#181a56' : 'rgba(0,0,0,0.2)' }}
             >
               <div className="flex items-center gap-2 text-[10px] font-bold text-high-accent mono italic">
-                <Sparkles size={10} />
-                PRO TIPS & SHORTCUTS
+                TIP
               </div>
               <div className="grid grid-cols-1 gap-1.5 mono-micro text-[9px] text-high-muted">
                 <div className="flex justify-between border-b border-white/5 pb-1">
