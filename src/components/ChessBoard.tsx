@@ -20,17 +20,10 @@ interface Annotation {
 }
 
 const AnnotationComponent = React.memo(({ annotation, isFlipped, isTemp }: { annotation: Annotation; isFlipped: boolean; isTemp?: boolean }) => {
-  let sr = annotation.start.r;
-  let sc = annotation.start.c;
-  let er = annotation.end.r;
-  let ec = annotation.end.c;
-
-  if (isFlipped) {
-    sr = 7 - sr;
-    sc = 7 - sc;
-    er = 7 - er;
-    ec = 7 - ec;
-  }
+  const sr = annotation.start.r;
+  const sc = annotation.start.c;
+  const er = annotation.end.r;
+  const ec = annotation.end.c;
 
   const x1 = (sc + 0.5) * (100 / 8);
   const y1 = (sr + 0.5) * (100 / 8);
@@ -55,6 +48,7 @@ const AnnotationComponent = React.memo(({ annotation, isFlipped, isTemp }: { ann
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           className={`flex items-center justify-center w-full h-full transition-all ${colorClass}`}
+          style={{ transform: isFlipped ? 'rotate(180deg)' : 'none' }}
         >
           {annotation.type === 'cross' ? (
             <X className="w-full h-full stroke-[4px]" />
@@ -78,7 +72,10 @@ const AnnotationComponent = React.memo(({ annotation, isFlipped, isTemp }: { ann
         const countY = (curR + 0.5) * (100 / 8);
         countIndicators.push(
             <foreignObject key={i} x={`${countX - 3.5}%`} y={`${countY - 3.5}%`} width="7%" height="7%">
-                <div className="flex items-center justify-center w-full h-full">
+                <div 
+                    className="flex items-center justify-center w-full h-full"
+                    style={{ transform: isFlipped ? 'rotate(180deg)' : 'none' }}
+                >
                     <span className="bg-orange-500 text-white text-[10px] sm:text-xs font-black rounded-full w-full h-full flex items-center justify-center shadow-lg border border-white/40 select-none">
                         {i}
                     </span>
