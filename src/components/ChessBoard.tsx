@@ -385,6 +385,7 @@ export default function ChessBoard({
         } else if (isRightClick) {
             if (e.shiftKey) type = 'countingArrow';
             else if (isRKeyPressed) type = 'redArrow';
+            else if (isMarkMode) type = annotationMode;
             else type = 'arrow';
         }
 
@@ -448,25 +449,47 @@ export default function ChessBoard({
     setDrawingAnnotation(null);
   }, [interactionMode]);
 
+  const hoveredSquareRef = useRef<{r: number, c: number} | null>(null);
+
+  useEffect(() => {
+    hoveredSquareRef.current = hoveredSquare;
+  }, [hoveredSquare]);
+
+  const handleFlipStable = useCallback(() => handleFlip(), [handleFlip]);
+
   useEffect(() => {
     const handleGlobalMouseUp = () => setIsPainting(false);
     
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
       const key = e.key.toLowerCase();
+      
+      if (key === '1') setInteractionMode('place');
+      if (key === '2') setInteractionMode('arrow');
+      if (key === 'f') handleFlipStable();
+      if (key === 'escape') {
+        setSelectedBrush(null);
+        setDrawingAnnotation(null);
+      }
+      if (key === 'backspace' || key === 'delete') {
+        setAnnotations([]);
+      }
       if (key === 'r') setIsRKeyPressed(true);
       
-      if ((key === 'n' || key === 't') && hoveredSquare) {
+      const currentHovered = hoveredSquareRef.current;
+      if ((key === 'n' || key === 't') && currentHovered) {
           const type: AnnotationType = key === 'n' ? 'cross' : 'tick';
           setAnnotations(prev => {
-              const existingIdx = prev.findIndex(a => a.type === type && a.start.r === hoveredSquare.r && a.start.c === hoveredSquare.c);
+              const existingIdx = prev.findIndex(a => a.type === type && a.start.r === currentHovered.r && a.start.c === currentHovered.c);
               if (existingIdx >= 0) {
                   return prev.filter((_, i) => i !== existingIdx);
               }
               return [...prev, {
-                  id: `${type}-${hoveredSquare.r}-${hoveredSquare.c}-${Date.now()}`,
+                  id: `${type}-${currentHovered.r}-${currentHovered.c}-${Date.now()}`,
                   type,
-                  start: hoveredSquare,
-                  end: hoveredSquare
+                  start: currentHovered,
+                  end: currentHovered
               }];
           });
       }
@@ -476,18 +499,25 @@ export default function ChessBoard({
       if (e.key.toLowerCase() === 'r') setIsRKeyPressed(false);
     };
 
+    const handleBlur = () => {
+      setIsRKeyPressed(false);
+      setIsPainting(false);
+    };
+
     window.addEventListener('mouseup', handleGlobalMouseUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     window.addEventListener('contextmenu', handleContextMenu);
     return () => {
       window.removeEventListener('mouseup', handleGlobalMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
       window.removeEventListener('contextmenu', handleContextMenu);
     }
-  }, [hoveredSquare]);
+  }, [handleFlipStable]);
 
   const pieces: PieceType[] = ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn', 'checker', 'checkerKing'];
 
@@ -846,24 +876,32 @@ export default function ChessBoard({
               </div>
               <div className="grid grid-cols-1 gap-1.5 mono-micro text-[9px] text-high-muted">
                 <div className="flex justify-between border-b border-white/5 pb-1">
-                  <span>Green Arrow</span>
-                  <span className="text-white">R-Click</span>
+                  <span>Switch Modes</span>
+                  <span className="text-white">1 (Place), 2 (Mark)</span>
+                </div>
+                <div className="flex justify-between border-b border-white/5 pb-1">
+                  <span>Marking</span>
+                  <span className="text-white">L / R-Click (Mode 2)</span>
                 </div>
                 <div className="flex justify-between border-b border-white/5 pb-1">
                   <span>Red Arrow</span>
-                  <span className="text-white">L-Click (Mark) or R+R-Click</span>
+                  <span className="text-white">R + Right-Click</span>
                 </div>
                 <div className="flex justify-between border-b border-white/5 pb-1">
                   <span>Counting Arrow</span>
-                  <span className="text-white">Shift + R-Click</span>
+                  <span className="text-white">Shift + Right-Click</span>
                 </div>
                 <div className="flex justify-between border-b border-white/5 pb-1">
-                  <span>Red Cross ✕</span>
-                  <span className="text-white">N</span>
+                  <span>Flip Perspective</span>
+                  <span className="text-white">F</span>
+                </div>
+                <div className="flex justify-between border-b border-white/5 pb-1">
+                  <span>Clear All Marks</span>
+                  <span className="text-white">DEL / BKSP</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Green Tick ✓</span>
-                  <span className="text-white">T</span>
+                  <span>Cross / Tick</span>
+                  <span className="text-white">N / T Key</span>
                 </div>
               </div>
             </motion.div>
