@@ -478,6 +478,8 @@ export default function ChessBoard({
   const [restrictChessMoves, setRestrictChessMoves] = useState(true);
   const [selectedSquare, setSelectedSquare] = useState<{r: number, c: number} | null>(null);
   const [invalidMoveAttempt, setInvalidMoveAttempt] = useState<{r: number, c: number} | null>(null);
+  const [enforceTurns, setEnforceTurns] = useState(false);
+  const [currentTurn, setCurrentTurn] = useState<PieceColor>('white');
 
   // Piece placing logic
   const placePiece = useCallback((row: number, col: number, toggle = false) => {
@@ -503,6 +505,7 @@ export default function ChessBoard({
     setAnnotations([]);
     setSelectedSquare(null);
     setInvalidMoveAttempt(null);
+    setCurrentTurn('white');
   }, []);
 
   const resetToCheckers = useCallback(() => {
@@ -510,6 +513,7 @@ export default function ChessBoard({
     setAnnotations([]);
     setSelectedSquare(null);
     setInvalidMoveAttempt(null);
+    setCurrentTurn('white');
   }, []);
 
   const clearBoard = useCallback(() => {
@@ -517,6 +521,7 @@ export default function ChessBoard({
     setAnnotations([]);
     setSelectedSquare(null);
     setInvalidMoveAttempt(null);
+    setCurrentTurn('white');
   }, []);
 
   const handleFlip = useCallback(() => {
@@ -573,17 +578,69 @@ export default function ChessBoard({
               setSelectedSquare(null);
             } else {
               const movingPiece = board[fromR][fromC];
-              const isChess = movingPiece && movingPiece.type !== 'checker' && movingPiece.type !== 'checkerKing';
               
-              if (movingPiece && restrictChessMoves && isChess) {
-                // Validate Move
-                if (isLegalChessMove(fromR, fromC, row, col, board)) {
+              if (movingPiece) {
+                // If clicked square contains a piece of their own color, switch selection!
+                const targetPiece = board[row][col];
+                if (targetPiece && targetPiece.color === movingPiece.color) {
+                  if (enforceTurns && targetPiece.color !== currentTurn) {
+                    setInvalidMoveAttempt({ r: row, c: col });
+                    setTimeout(() => setInvalidMoveAttempt(null), 350);
+                    return;
+                  }
+                  setSelectedSquare({ r: row, c: col });
+                  return;
+                }
+
+                const isChess = movingPiece.type !== 'checker' && movingPiece.type !== 'checkerKing';
+                
+                if (restrictChessMoves && isChess) {
+                  // Validate Move
+                  if (isLegalChessMove(fromR, fromC, row, col, board)) {
+                    setBoard(prev => {
+                      const newBoard = prev.map(r => [...r]);
+                      newBoard[row][col] = movingPiece;
+                      newBoard[fromR][fromC] = null;
+                      
+                      // Auto promote pawn to queen reaches end rows
+                      if (movingPiece.type === 'pawn') {
+                        if ((movingPiece.color === 'white' && row === 0) || (movingPiece.color === 'black' && row === 7)) {
+                          newBoard[row][col] = {
+                            ...movingPiece,
+                            id: movingPiece.id,
+                            type: 'queen'
+                          };
+                        }
+                      }
+                      return newBoard;
+                    });
+                    setSelectedSquare(null);
+                    if (enforceTurns) {
+                      setCurrentTurn(prev => prev === 'white' ? 'black' : 'white');
+                    }
+                  } else {
+                    // Shake / Alert visual feedback
+                    setInvalidMoveAttempt({ r: row, c: col });
+                    setTimeout(() => setInvalidMoveAttempt(null), 350);
+                  }
+                } else {
+                  // Free sandbox movement/checkers movement
                   setBoard(prev => {
                     const newBoard = prev.map(r => [...r]);
                     newBoard[row][col] = movingPiece;
                     newBoard[fromR][fromC] = null;
-                    
-                    // Auto promote pawn to queen reaches end rows
+
+                    // Auto promote checker to checkerKing
+                    if (movingPiece.type === 'checker') {
+                      if ((movingPiece.color === 'white' && row === 0) || (movingPiece.color === 'black' && row === 7)) {
+                        newBoard[row][col] = {
+                          ...movingPiece,
+                          id: movingPiece.id,
+                          type: 'checkerKing'
+                        };
+                      }
+                    }
+                    // Auto promote pawn to queen even in free move sandbox
                     if (movingPiece.type === 'pawn') {
                       if ((movingPiece.color === 'white' && row === 0) || (movingPiece.color === 'black' && row === 7)) {
                         newBoard[row][col] = {
@@ -596,44 +653,18 @@ export default function ChessBoard({
                     return newBoard;
                   });
                   setSelectedSquare(null);
-                } else {
-                  // Shake / Alert visual feedback
-                  setInvalidMoveAttempt({ r: row, c: col });
-                  setTimeout(() => setInvalidMoveAttempt(null), 350);
+                  if (enforceTurns) {
+                    setCurrentTurn(prev => prev === 'white' ? 'black' : 'white');
+                  }
                 }
-              } else if (movingPiece) {
-                // Free sandbox movement/checkers movement
-                setBoard(prev => {
-                  const newBoard = prev.map(r => [...r]);
-                  newBoard[row][col] = movingPiece;
-                  newBoard[fromR][fromC] = null;
-
-                  // Auto promote checker to checkerKing
-                  if (movingPiece.type === 'checker') {
-                    if ((movingPiece.color === 'white' && row === 0) || (movingPiece.color === 'black' && row === 7)) {
-                      newBoard[row][col] = {
-                        ...movingPiece,
-                        id: movingPiece.id,
-                        type: 'checkerKing'
-                      };
-                    }
-                  }
-                  // Auto promote pawn to queen even in free move sandbox
-                  if (movingPiece.type === 'pawn') {
-                    if ((movingPiece.color === 'white' && row === 0) || (movingPiece.color === 'black' && row === 7)) {
-                      newBoard[row][col] = {
-                        ...movingPiece,
-                        id: movingPiece.id,
-                        type: 'queen'
-                      };
-                    }
-                  }
-                  return newBoard;
-                });
-                setSelectedSquare(null);
               } else {
                 // No moving piece on source, check if we can select this clicked piece
                 if (piece) {
+                  if (enforceTurns && piece.color !== currentTurn) {
+                    setInvalidMoveAttempt({ r: row, c: col });
+                    setTimeout(() => setInvalidMoveAttempt(null), 350);
+                    return;
+                  }
                   setSelectedSquare({ r: row, c: col });
                 } else {
                   setSelectedSquare(null);
@@ -643,13 +674,18 @@ export default function ChessBoard({
           } else {
             // No selection yet, select if clicked square contains a piece
             if (piece) {
+              if (enforceTurns && piece.color !== currentTurn) {
+                setInvalidMoveAttempt({ r: row, c: col });
+                setTimeout(() => setInvalidMoveAttempt(null), 350);
+                return;
+              }
               setSelectedSquare({ r: row, c: col });
             }
           }
         }
       }
     }
-  }, [interactionMode, selectedBrush, placePiece, selectedSquare, board, restrictChessMoves]);
+  }, [interactionMode, selectedBrush, placePiece, selectedSquare, board, restrictChessMoves, enforceTurns, currentTurn]);
 
   const handleSquareMouseEnter = useCallback((row: number, col: number) => {
     setHoveredSquare({ r: row, c: col });
@@ -823,8 +859,24 @@ export default function ChessBoard({
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.4 }}
-        className="flex-[2] w-full p-8 flex items-center justify-center relative min-h-[400px] sm:min-h-[640px]"
+        className="flex-[2] w-full p-8 flex flex-col items-center justify-center relative min-h-[400px] sm:min-h-[640px] gap-4"
       >
+        {enforceTurns && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`px-5 py-2.5 border text-xs font-black tracking-[0.15em] uppercase flex items-center gap-2.5 shadow-md ${
+              currentTurn === 'white' 
+                ? 'bg-zinc-100 text-black border-zinc-300' 
+                : 'bg-zinc-900 text-white border-zinc-800'
+            }`}
+            style={{ borderRadius: '2px' }}
+          >
+            <span className={`w-2.5 h-2.5 rounded-full ${currentTurn === 'white' ? 'bg-zinc-800' : 'bg-white'} animate-pulse`} />
+            {currentTurn === 'white' ? "White's Turn" : "Black's Turn"}
+          </motion.div>
+        )}
+
         <motion.div 
           className={`relative aspect-square w-full max-w-[512px] border-high-deep shadow-2xl overflow-hidden select-none p-2 ${
             interactionMode === 'place' ? 'cursor-crosshair' : 'cursor-cell'
@@ -1032,6 +1084,19 @@ export default function ChessBoard({
                             className="accent-high-accent w-3 h-3 bg-high-deep border-none focus:ring-0"
                         />
                     </label>
+                    <label className="flex items-center justify-between cursor-pointer group">
+                        <span className="mono-micro text-[10px] text-high-muted group-hover:text-white transition-colors">One Turn Each (Alternating)</span>
+                        <input 
+                            type="checkbox" 
+                            checked={enforceTurns} 
+                            onChange={(e) => {
+                              setEnforceTurns(e.target.checked);
+                              setSelectedSquare(null);
+                              setInvalidMoveAttempt(null);
+                            }}
+                            className="accent-high-accent w-3 h-3 bg-high-deep border-none focus:ring-0"
+                        />
+                    </label>
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5">
                     <button 
@@ -1185,6 +1250,33 @@ export default function ChessBoard({
               <span
                 className={`block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform duration-300 ${
                   restrictChessMoves ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Alternating Turns Switch */}
+          <div 
+            className="flex items-center justify-between p-3 border border-high-border/80 transition-colors duration-300"
+            style={{ backgroundColor: colorfulMode ? '#3c1d5d' : 'var(--high-card)' }}
+          >
+            <div className="flex flex-col">
+              <span className="mono text-[10px] text-white font-black tracking-wider uppercase">ONE TURN EACH</span>
+              <span className="text-[8px] text-high-muted tracking-wide">Enforces alternating white & black turns</span>
+            </div>
+            <button
+              onClick={() => {
+                setEnforceTurns(prev => !prev);
+                setSelectedSquare(null);
+                setInvalidMoveAttempt(null);
+              }}
+              className={`relative h-6 w-11 rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${
+                enforceTurns ? 'bg-high-accent' : 'bg-high-deep/70 border border-high-border'
+              }`}
+            >
+              <span
+                className={`block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform duration-300 ${
+                  enforceTurns ? 'translate-x-5' : 'translate-x-0'
                 }`}
               />
             </button>
