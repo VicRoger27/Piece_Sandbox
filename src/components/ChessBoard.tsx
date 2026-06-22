@@ -10,6 +10,171 @@ import { Piece, PieceType, PieceColor, BoardState, UNICODE_PIECES } from '../typ
 
 const INITIAL_BOARD: BoardState = Array(8).fill(null).map(() => Array(8).fill(null));
 
+const createChessLayout = (): BoardState => {
+  const newBoard: BoardState = Array(8).fill(null).map(() => Array(8).fill(null));
+  const backRow: PieceType[] = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
+
+  // Black pieces (Row 0, 1)
+  for (let c = 0; c < 8; c++) {
+    newBoard[0][c] = {
+      id: `black-${backRow[c]}-${c}`,
+      type: backRow[c],
+      color: 'black'
+    };
+    newBoard[1][c] = {
+      id: `black-pawn-${c}`,
+      type: 'pawn',
+      color: 'black'
+    };
+  }
+
+  // White pieces (Row 6, 7)
+  for (let c = 0; c < 8; c++) {
+    newBoard[6][c] = {
+      id: `white-pawn-${c}`,
+      type: 'pawn',
+      color: 'white'
+    };
+    newBoard[7][c] = {
+      id: `white-${backRow[c]}-${c}`,
+      type: backRow[c],
+      color: 'white'
+    };
+  }
+
+  return newBoard;
+};
+
+const createCheckersLayout = (): BoardState => {
+  const newBoard: BoardState = Array(8).fill(null).map(() => Array(8).fill(null));
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      if ((r + c) % 2 === 1) {
+        if (r < 3) {
+          newBoard[r][c] = {
+            id: `black-checker-${r}-${c}`,
+            type: 'checker',
+            color: 'black'
+          };
+        } else if (r > 4) {
+          newBoard[r][c] = {
+            id: `white-checker-${r}-${c}`,
+            type: 'checker',
+            color: 'white'
+          };
+        }
+      }
+    }
+  }
+
+  return newBoard;
+};
+
+function isLegalChessMove(
+  fromR: number,
+  fromC: number,
+  toR: number,
+  toC: number,
+  board: BoardState
+): boolean {
+  const piece = board[fromR][fromC];
+  if (!piece) return false;
+
+  if (fromR === toR && fromC === toC) return false;
+
+  const targetPiece = board[toR][toC];
+  if (targetPiece && targetPiece.color === piece.color) return false;
+
+  const dr = toR - fromR;
+  const dc = toC - fromC;
+  const absDr = Math.abs(dr);
+  const absDc = Math.abs(dc);
+
+  switch (piece.type) {
+    case 'pawn': {
+      const dir = piece.color === 'white' ? -1 : 1;
+      const startRow = piece.color === 'white' ? 6 : 1;
+
+      // 1 step forward
+      if (dc === 0 && dr === dir && !targetPiece) {
+        return true;
+      }
+      // 2 steps forward from starting row
+      if (dc === 0 && fromR === startRow && dr === 2 * dir) {
+        const intermediateRow = fromR + dir;
+        if (!board[intermediateRow][fromC] && !targetPiece) {
+          return true;
+        }
+      }
+      // Diagonal capture
+      if (absDc === 1 && dr === dir) {
+        if (targetPiece && targetPiece.color !== piece.color) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    case 'knight': {
+      return (absDr === 1 && absDc === 2) || (absDr === 2 && absDc === 1);
+    }
+
+    case 'bishop': {
+      if (absDr !== absDc) return false;
+      const stepR = dr > 0 ? 1 : -1;
+      const stepC = dc > 0 ? 1 : -1;
+      let currR = fromR + stepR;
+      let currC = fromC + stepC;
+      while (currR !== toR && currC !== toC) {
+        if (board[currR][currC]) return false;
+        currR += stepR;
+        currC += stepC;
+      }
+      return true;
+    }
+
+    case 'rook': {
+      if (fromR !== toR && fromC !== toC) return false;
+      const stepR = fromR === toR ? 0 : (dr > 0 ? 1 : -1);
+      const stepC = fromC === toC ? 0 : (dc > 0 ? 1 : -1);
+      let currR = fromR + stepR;
+      let currC = fromC + stepC;
+      while (currR !== toR || currC !== toC) {
+        if (board[currR][currC]) return false;
+        currR += stepR;
+        currC += stepC;
+      }
+      return true;
+    }
+
+    case 'queen': {
+      const isDiagonal = absDr === absDc;
+      const isStraight = fromR === toR || fromC === toC;
+      if (!isDiagonal && !isStraight) return false;
+
+      const stepR = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
+      const stepC = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
+      let currR = fromR + stepR;
+      let currC = fromC + stepC;
+      while (currR !== toR || currC !== toC) {
+        if (board[currR][currC]) return false;
+        currR += stepR;
+        currC += stepC;
+      }
+      return true;
+    }
+
+    case 'king': {
+      if (absDr <= 1 && absDc <= 1) return true;
+      return false;
+    }
+
+    default:
+      return true;
+  }
+}
+
 type AnnotationType = 'arrow' | 'redArrow' | 'countingArrow' | 'cross' | 'tick';
 
 interface Annotation {
@@ -178,6 +343,9 @@ const SquareBG = React.memo(({
   interactionMode, 
   selectedBrush,
   isFlinging,
+  isSelected,
+  isPossibleDestination,
+  isInvalidAttempt,
   onSquareMouseDown, 
   onSquareMouseEnter,
   onSquareMouseLeave 
@@ -190,6 +358,9 @@ const SquareBG = React.memo(({
   interactionMode: string;
   selectedBrush: { type: PieceType; color: PieceColor } | null;
   isFlinging: boolean;
+  isSelected?: boolean;
+  isPossibleDestination?: boolean;
+  isInvalidAttempt?: boolean;
   onSquareMouseDown: (r: number, c: number, e: React.MouseEvent) => void;
   onSquareMouseEnter: (r: number, c: number) => void;
   onSquareMouseLeave: () => void;
@@ -212,9 +383,25 @@ const SquareBG = React.memo(({
       }}
       transition={{ duration: 1.2, ease: "easeInOut" }}
       className={`w-full h-full relative flex items-center justify-center pointer-events-auto transition-all duration-700 ${
-        isDark ? 'bg-high-deep/40' : 'bg-high-text/90'
+        isInvalidAttempt
+          ? 'bg-red-500/50 ring-4 ring-red-500 ring-inset'
+          : isSelected
+            ? 'bg-high-accent/30 ring-4 ring-high-accent ring-inset shadow-[inset_0_0_12px_rgba(34,197,94,0.3)]'
+            : isDark 
+              ? 'bg-high-deep/40' 
+              : 'bg-high-text/90'
       } ${interactionMode === 'place' ? 'hover:bg-high-accent/10 cursor-crosshair' : ''}`}
     >
+      {isPossibleDestination && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          {hasPiece ? (
+            <div className="w-[82%] h-[82%] rounded-full border-[5px] border-high-accent/70 shadow-[0_0_10px_rgba(34,197,94,0.4)]" />
+          ) : (
+            <div className="w-[30%] h-[30%] min-w-[12px] min-h-[12px] rounded-full bg-high-accent/70 shadow-[0_0_8px_rgba(34,197,94,0.5)] animate-pulse" />
+          )}
+        </div>
+      )}
+
       {!hasPiece && interactionMode === 'place' && selectedBrush && (
         <div 
           className="absolute inset-0 opacity-0 group-hover:opacity-40 flex items-center justify-center transition-opacity pointer-events-none"
@@ -287,6 +474,11 @@ export default function ChessBoard({
   const [isRKeyPressed, setIsRKeyPressed] = useState(false);
   const [colorfulMode, setColorfulMode] = useState(false);
 
+  // Drag and drop states for legal moves/free movement
+  const [restrictChessMoves, setRestrictChessMoves] = useState(true);
+  const [selectedSquare, setSelectedSquare] = useState<{r: number, c: number} | null>(null);
+  const [invalidMoveAttempt, setInvalidMoveAttempt] = useState<{r: number, c: number} | null>(null);
+
   // Piece placing logic
   const placePiece = useCallback((row: number, col: number, toggle = false) => {
     if (!selectedBrush || interactionMode !== 'place') return;
@@ -306,9 +498,25 @@ export default function ChessBoard({
     });
   }, [selectedBrush, interactionMode]);
 
+  const resetToChess = useCallback(() => {
+    setBoard(createChessLayout());
+    setAnnotations([]);
+    setSelectedSquare(null);
+    setInvalidMoveAttempt(null);
+  }, []);
+
+  const resetToCheckers = useCallback(() => {
+    setBoard(createCheckersLayout());
+    setAnnotations([]);
+    setSelectedSquare(null);
+    setInvalidMoveAttempt(null);
+  }, []);
+
   const clearBoard = useCallback(() => {
     setBoard(INITIAL_BOARD);
     setAnnotations([]);
+    setSelectedSquare(null);
+    setInvalidMoveAttempt(null);
   }, []);
 
   const handleFlip = useCallback(() => {
@@ -346,11 +554,102 @@ export default function ChessBoard({
   }, [isFlipped]);
 
   const handleSquareMouseDown = useCallback((row: number, col: number, e: React.MouseEvent) => {
-    if (interactionMode === 'place' && selectedBrush && e.button === 0) {
-      setIsPainting(true);
-      placePiece(row, col, true);
+    if (interactionMode === 'place') {
+      if (selectedBrush) {
+        if (e.button === 0) {
+          setIsPainting(true);
+          placePiece(row, col, true);
+        }
+      } else {
+        // Selection / Movement logic (Deselected brush sandbox mode)
+        if (e.button === 0) {
+          const piece = board[row][col];
+          if (selectedSquare) {
+            const fromR = selectedSquare.r;
+            const fromC = selectedSquare.c;
+
+            if (fromR === row && fromC === col) {
+              // Clicked same square, deselect
+              setSelectedSquare(null);
+            } else {
+              const movingPiece = board[fromR][fromC];
+              const isChess = movingPiece && movingPiece.type !== 'checker' && movingPiece.type !== 'checkerKing';
+              
+              if (movingPiece && restrictChessMoves && isChess) {
+                // Validate Move
+                if (isLegalChessMove(fromR, fromC, row, col, board)) {
+                  setBoard(prev => {
+                    const newBoard = prev.map(r => [...r]);
+                    newBoard[row][col] = movingPiece;
+                    newBoard[fromR][fromC] = null;
+                    
+                    // Auto promote pawn to queen reaches end rows
+                    if (movingPiece.type === 'pawn') {
+                      if ((movingPiece.color === 'white' && row === 0) || (movingPiece.color === 'black' && row === 7)) {
+                        newBoard[row][col] = {
+                          ...movingPiece,
+                          id: movingPiece.id,
+                          type: 'queen'
+                        };
+                      }
+                    }
+                    return newBoard;
+                  });
+                  setSelectedSquare(null);
+                } else {
+                  // Shake / Alert visual feedback
+                  setInvalidMoveAttempt({ r: row, c: col });
+                  setTimeout(() => setInvalidMoveAttempt(null), 350);
+                }
+              } else if (movingPiece) {
+                // Free sandbox movement/checkers movement
+                setBoard(prev => {
+                  const newBoard = prev.map(r => [...r]);
+                  newBoard[row][col] = movingPiece;
+                  newBoard[fromR][fromC] = null;
+
+                  // Auto promote checker to checkerKing
+                  if (movingPiece.type === 'checker') {
+                    if ((movingPiece.color === 'white' && row === 0) || (movingPiece.color === 'black' && row === 7)) {
+                      newBoard[row][col] = {
+                        ...movingPiece,
+                        id: movingPiece.id,
+                        type: 'checkerKing'
+                      };
+                    }
+                  }
+                  // Auto promote pawn to queen even in free move sandbox
+                  if (movingPiece.type === 'pawn') {
+                    if ((movingPiece.color === 'white' && row === 0) || (movingPiece.color === 'black' && row === 7)) {
+                      newBoard[row][col] = {
+                        ...movingPiece,
+                        id: movingPiece.id,
+                        type: 'queen'
+                      };
+                    }
+                  }
+                  return newBoard;
+                });
+                setSelectedSquare(null);
+              } else {
+                // No moving piece on source, check if we can select this clicked piece
+                if (piece) {
+                  setSelectedSquare({ r: row, c: col });
+                } else {
+                  setSelectedSquare(null);
+                }
+              }
+            }
+          } else {
+            // No selection yet, select if clicked square contains a piece
+            if (piece) {
+              setSelectedSquare({ r: row, c: col });
+            }
+          }
+        }
+      }
     }
-  }, [interactionMode, selectedBrush, placePiece]);
+  }, [interactionMode, selectedBrush, placePiece, selectedSquare, board, restrictChessMoves]);
 
   const handleSquareMouseEnter = useCallback((row: number, col: number) => {
     setHoveredSquare({ r: row, c: col });
@@ -554,22 +853,40 @@ export default function ChessBoard({
               style={{ gap: isFlinging ? '12px' : '1px', transition: 'gap 1.2s cubic-bezier(0.65, 0, 0.35, 1)' }}
             >
               {board.map((rowArr, rowIndex) => 
-                rowArr.map((piece, colIndex) => (
-                  <SquareBG
-                    key={`bg-${rowIndex}-${colIndex}`}
-                    row={rowIndex}
-                    col={colIndex}
-                    isDark={(rowIndex + colIndex) % 2 === 1}
-                    hasPiece={!!piece}
-                    isFlipped={isFlipped}
-                    interactionMode={interactionMode}
-                    selectedBrush={selectedBrush}
-                    isFlinging={isFlinging}
-                    onSquareMouseDown={handleSquareMouseDown}
-                    onSquareMouseEnter={handleSquareMouseEnter}
-                    onSquareMouseLeave={handleSquareMouseLeave}
-                  />
-                ))
+                rowArr.map((piece, colIndex) => {
+                  const isSelected = selectedSquare?.r === rowIndex && selectedSquare?.c === colIndex;
+                  const isPossibleDestination = !!selectedSquare && (() => {
+                    if (selectedSquare.r === rowIndex && selectedSquare.c === colIndex) return false;
+                    const movingPiece = board[selectedSquare.r][selectedSquare.c];
+                    if (!movingPiece) return false;
+                    const isChess = movingPiece.type !== 'checker' && movingPiece.type !== 'checkerKing';
+                    if (restrictChessMoves && isChess) {
+                      return isLegalChessMove(selectedSquare.r, selectedSquare.c, rowIndex, colIndex, board);
+                    }
+                    return false;
+                  })();
+                  const isInvalidAttempt = invalidMoveAttempt?.r === rowIndex && invalidMoveAttempt?.c === colIndex;
+
+                  return (
+                    <SquareBG
+                      key={`bg-${rowIndex}-${colIndex}`}
+                      row={rowIndex}
+                      col={colIndex}
+                      isDark={(rowIndex + colIndex) % 2 === 1}
+                      hasPiece={!!piece}
+                      isFlipped={isFlipped}
+                      interactionMode={interactionMode}
+                      selectedBrush={selectedBrush}
+                      isFlinging={isFlinging}
+                      isSelected={isSelected}
+                      isPossibleDestination={isPossibleDestination}
+                      isInvalidAttempt={isInvalidAttempt}
+                      onSquareMouseDown={handleSquareMouseDown}
+                      onSquareMouseEnter={handleSquareMouseEnter}
+                      onSquareMouseLeave={handleSquareMouseLeave}
+                    />
+                  );
+                })
               )}
             </div>
 
@@ -706,6 +1023,15 @@ export default function ChessBoard({
                             className="accent-high-accent w-3 h-3 bg-high-deep border-none focus:ring-0"
                         />
                     </label>
+                    <label className="flex items-center justify-between cursor-pointer group">
+                        <span className="mono-micro text-[10px] text-high-muted group-hover:text-white transition-colors">Enforce Legal Chess Moves</span>
+                        <input 
+                            type="checkbox" 
+                            checked={restrictChessMoves} 
+                            onChange={(e) => setRestrictChessMoves(e.target.checked)}
+                            className="accent-high-accent w-3 h-3 bg-high-deep border-none focus:ring-0"
+                        />
+                    </label>
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5">
                     <button 
@@ -836,20 +1162,68 @@ export default function ChessBoard({
           </div>
         </div>
 
-        <div className="space-y-2 mt-auto">
+        <div className="space-y-3 mt-auto">
+          {/* Legal Chess Moves Toggle Switch */}
+          <div 
+            className="flex items-center justify-between p-3 border border-high-border/80 transition-colors duration-300"
+            style={{ backgroundColor: colorfulMode ? '#3c1d5d' : 'var(--high-card)' }}
+          >
+            <div className="flex flex-col">
+              <span className="mono text-[10px] text-white font-black tracking-wider uppercase">LEGAL CHESS MOVES</span>
+              <span className="text-[8px] text-high-muted tracking-wide">Highlights destination options</span>
+            </div>
+            <button
+              onClick={() => {
+                setRestrictChessMoves(prev => !prev);
+                setSelectedSquare(null);
+                setInvalidMoveAttempt(null);
+              }}
+              className={`relative h-6 w-11 rounded-full p-0.5 transition-colors duration-300 focus:outline-none ${
+                restrictChessMoves ? 'bg-high-accent' : 'bg-high-deep/70 border border-high-border'
+              }`}
+            >
+              <span
+                className={`block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform duration-300 ${
+                  restrictChessMoves ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Grid of Reset Presets */}
+          <div className="grid grid-cols-2 gap-1.5">
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={resetToChess}
+              className="py-3 bg-high-accent text-black font-black uppercase text-[10px] tracking-wider transition-all hover:brightness-110 shadow-[0_0_12px_rgba(34,197,94,0.3)] rounded-sm"
+            >
+              Chess Layout
+            </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={resetToCheckers}
+              className="py-3 bg-high-accent text-black font-black uppercase text-[10px] tracking-wider transition-all hover:brightness-110 shadow-[0_0_12px_rgba(34,197,94,0.3)] rounded-sm"
+            >
+              Checkers Layout
+            </motion.button>
+          </div>
+
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={clearBoard}
-            className="group relative w-full py-4 bg-high-accent text-black font-black uppercase text-xs tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)] overflow-hidden hover:brightness-110"
+            className="w-full py-2.5 border border-high-border text-high-muted hover:text-white uppercase font-bold text-[9px] tracking-[0.2em] bg-high-card/20 hover:bg-high-card/40 transition-colors"
           >
-            Reset Board
+            Clear Board
           </motion.button>
+
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleFlip}
-            className="w-full py-3 border border-high-border mono-micro transition-colors flex items-center justify-center gap-2"
+            className="w-full py-2.5 border border-high-border mono-micro transition-colors flex items-center justify-center gap-2"
             style={{ 
                 backgroundColor: colorfulMode ? '#23c58c' : 'transparent',
                 color: colorfulMode ? 'black' : 'var(--high-muted)',
@@ -869,9 +1243,13 @@ export default function ChessBoard({
               style={{ backgroundColor: colorfulMode ? '#181a56' : 'rgba(0,0,0,0.2)' }}
             >
               <div className="flex items-center gap-2 text-[10px] font-bold text-high-accent mono italic">
-                TIP
+                GAMEPLAY CONTROLS & SHORTCUTS
               </div>
               <div className="grid grid-cols-1 gap-1.5 mono-micro text-[9px] text-high-muted">
+                <div className="flex justify-between border-b border-white/5 pb-1">
+                  <span>How to Move Pieces</span>
+                  <span className="text-white text-right">Click to Select, Click target square (Green dot)</span>
+                </div>
                 <div className="flex justify-between border-b border-white/5 pb-1">
                   <span>Switch Modes</span>
                   <span className="text-white">1 (Place), 2 (Mark)</span>
